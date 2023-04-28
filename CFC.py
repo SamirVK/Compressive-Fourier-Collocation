@@ -151,7 +151,7 @@ def CFC(colloc_points, cardinal_lambda, diff_num, exact_sparsity):
         s2 = -a(x,y,num)*uxx(x,y,sparsity)
         s3 = -ay(x,y,num)*uy(x,y,sparsity)
         s4 = -a(x,y,num)*uyy(x,y,sparsity)
-        b[i] = s1 + s2 + s3 + s4
+        b[i] = (s1 + s2 + s3 + s4)/np.sqrt(M)
 
     c_hat = np.linalg.lstsq(A, b, rcond=None)
     return c_hat
@@ -200,7 +200,7 @@ x = np.outer(np.linspace(0,1,1000), np.ones(1000))
 y = x.copy().T
 
 M = 2**9
-c_hat = CFC(M, cardlam, 3, 'nonsparse')
+c_hat = CFC(M, cardlam, 3, 'sparse')
 z_approx = u_approx(x, y, c_hat, lam, cardlam)
 
 # Plot z_true
