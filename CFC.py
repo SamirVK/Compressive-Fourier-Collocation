@@ -9,7 +9,7 @@ Created on Thu Apr 27 12:36:57 2023
 import numpy as np
 import numpy.random as rd
 from sklearn import linear_model
-from scipy.integrate import quad, dblquad
+from scipy.integrate import dblquad
 
 import matplotlib.pyplot as plt
 
@@ -156,7 +156,7 @@ def CFC(colloc_points, cardinal_lambda, diff_num, exact_sparsity):
     c_hat = np.linalg.lstsq(A, b, rcond=None)
     return c_hat
 
-## PLOTTING
+## PLOT HYPERBOLIC SET AND EXACT SOLUTIONS
 def exactPlots():
     plt.xlabel('x')
     plt.ylabel('y')
@@ -166,19 +166,39 @@ def exactPlots():
     plt.show()
     
     # PLOT EXACT SOLUTIONS
-    x = np.outer(np.linspace(0,1,1000), np.ones(1000))
+    x = np.outer(np.linspace(0,1,200), np.ones(200))
     y = x.copy().T
-    z_true = u(x,y,'sparse')
+    z_true = u(x,y,'nonsparse')
     
     # Plot z_true
-    fig = plt.figure()
+    axi = plt.axes(projection = '3d')
+    axi.set_xlabel('x')
+    axi.set_ylabel('y')
+    axi.set_zlabel('u2')
+    axi.plot_surface(x,y,z_true,cmap='plasma', cstride=1, rstride = 1,
+                     alpha=None, linewidth = 0, antialiased=False)
+    axi.view_init(15,235)
+    plt.savefig('Exact_u2', bbox_inches="tight", dpi=300)
+    plt.show()
+    
+# PLOT APPROXIMATE SOLUTIONS
+def approxPlots():      
+    x = np.outer(np.linspace(0,1,100), np.ones(100))
+    y = x.copy().T
+    
+    M = 2**9
+    c_hat = CFC(M, cardlam, 1, 'sparse')
+    z_approx = u_approx(x, y, c_hat, lam, cardlam)
+    
+    # Plot z_approx
     axi = plt.axes(projection = '3d')
     axi.set_xlabel('x')
     axi.set_ylabel('y')
     axi.set_zlabel('u1')
-    axi.plot_surface(x,y,z_true,cmap='plasma')
+    axi.plot_surface(x,y,z_approx,cmap='plasma', cstride = 1, rstride = 1,
+                     alpha=None, antialiased=True)
     axi.view_init(15,235)
-    #plt.savefig('Exact_u1', bbox_inches="tight", dpi=300)
+    #plt.savefig('Approx_u1_a1', bbox_inches="tight", dpi=300)
     plt.show()
 
 # Define the hyperbolic truncation set
@@ -190,29 +210,10 @@ for x in range(-n+1, n):
             lam.append(np.array([x,y]))
 cardlam = len(lam)
 
-# PROBLEM PARAMETERS
 np.random.seed(0)
 d = rd.rand(10)
 m = rd.randint(1, 6, size = 10)
 n = rd.randint(1, 6, size = 10)
-
-x = np.outer(np.linspace(0,1,1000), np.ones(1000))
-y = x.copy().T
-
-M = 2**9
-c_hat = CFC(M, cardlam, 3, 'sparse')
-z_approx = u_approx(x, y, c_hat, lam, cardlam)
-
-# Plot z_true
-fig = plt.figure()
-axi = plt.axes(projection = '3d')
-axi.set_xlabel('x')
-axi.set_ylabel('y')
-axi.set_zlabel('u1')
-axi.plot_surface(x,y,z_approx,cmap='plasma')
-axi.view_init(15,235)
-#plt.savefig('Exact_u1', bbox_inches="tight", dpi=300)
-plt.show()
 
 
 
