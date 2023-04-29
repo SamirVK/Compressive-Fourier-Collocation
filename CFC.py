@@ -143,7 +143,7 @@ def CFC(colloc_points, cardinal_lambda, diff_num, exact_sparsity, recovery):
             A[i,j] = c*(s1+s2+s3+s4)
             
     # Build b
-    b = [0]*(M)
+    b = np.zeros(M, dtype=complex)
     for i in range(M):
         x = colloc[i][0]
         y = colloc[i][1]
@@ -165,19 +165,27 @@ def CFC(colloc_points, cardinal_lambda, diff_num, exact_sparsity, recovery):
 ## OMP takes A, b, K, as input and returns a K-sparse coefficient vector
 def OMP(A, b, K, N):
     # Normalize the columns of A
-    A = A/np.sqrt(np.sum(np.square(np.abs(A))))
+    A = A/np.sqrt(np.sum(np.square(np.abs(A)),axis=0))
     # Initialize z with empty support
     S = []
+    masc = np.zeros(N,dtype=bool)
+    #s_columns = np.zeros(N)
     z = np.zeros(N, dtype=complex)
     for n in range(K):
         # Pick the index whose column of A is mostly correlated with the 
-        # residual due to the current approximation z[n]
+        # residual due to the current approximation
         r = b - A.dot(z) 
-        j = np.argmax(np.abs((A.conj().T).dot(r)))
+        maximiser = np.abs((A.conj().T).dot(r))
+        maximiser = np.ma.array(maximiser,mask=masc)
+        j = np.argmax(maximiser)
         S.append(j)
-        z[S] = np.linalg.pinv(A[:,S]).dot(b)              
+        masc[S] = True
+        #s_columns[S] = 1
+        if len(S) == 1:
+            z[S] = np.ndarray.flatten(A[:,S]).dot(b)
+        else:
+            z[S] = np.linalg.pinv(A[:,S]).dot(b)  
     c_hat = z    
-    print(np.linalg.norm(c_hat,ord=0))
     return c_hat
 
 ## PLOT HYPERBOLIC SET AND EXACT SOLUTIONS
@@ -242,12 +250,14 @@ cardlam = len(lam)
 
 sparsity = 'sparse' ############## <<<<<<<<< Change sparsity
 diff = 1 ###################### <<<<<<<<< Change diff coeff
-r = 'OMP' ################## <<<<<<<<<< Change recovery method
-L2_losses = []
-collocation_points = [8,16,32,64,128,256,512]
+
+L2_losses_ols = []
+L2_losses_omp = []
+collocation_points = [8,16,32,64,128,256,512,712]
 for M in collocation_points:
-    test_losses = []
-    for test in range(1):
+    test_losses_ols = []
+    test_losses_omp = []
+    for test in range(5):
         
         # Provide random parameters (global variables)
         d = rd.rand(10)
@@ -263,21 +273,32 @@ for M in collocation_points:
         u_exact = u(x,y,sparsity)
         
         # Get the approx solution at the random points
-        c_hat = CFC(M, cardlam, diff, sparsity, r)
-        u_hat = u_approx(x, y, c_hat, lam, cardlam)
+        c_hat_ols = CFC(M, cardlam, diff, sparsity, 'OLS')
+        u_hat_ols = u_approx(x, y, c_hat_ols, lam, cardlam)
+        c_hat_omp = CFC(M, cardlam, diff, sparsity, 'OMP')
+        u_hat_omp = u_approx(x, y, c_hat_omp, lam, cardlam)
         
         # Compute the loss for this trial
-        loss = (np.sqrt(sum(abs(u_exact-u_hat)**2)/np.sqrt(M))/
+        loss = (np.sqrt(sum(abs(u_exact-u_hat_ols)**2)/np.sqrt(M))/
                 np.sqrt(sum(abs(u_exact)**2)/np.sqrt(M)))
-        test_losses.append(loss)
+        test_losses_ols.append(loss)
+        loss = (np.sqrt(sum(abs(u_exact-u_hat_omp)**2)/np.sqrt(M))/
+                np.sqrt(sum(abs(u_exact)**2)/np.sqrt(M)))
+        test_losses_omp.append(loss)
 
     # Compute the geometric mean of the test_losses
-    L2_losses.append(gmean(test_losses))
+    L2_losses_ols.append(gmean(test_losses_ols))
+    L2_losses_omp.append(gmean(test_losses_omp))
 
 plt.figure()
-plt.plot(collocation_points, L2_losses, marker = '.', color='black', label='OLS')
+plt.plot(collocation_points, L2_losses_ols, marker = '.', color='blueviolet', label='OLS')
+plt.plot(collocation_points, L2_losses_omp, marker = '.', color='darkorange', label ='OMP')
 plt.axvline(x = 444, linestyle='dotted', color='gray', label=r'$m=|\Lambda|$')
 plt.yscale('log')
+plt.ylabel(r'Relative $L^2$ error')
+plt.xlabel('m')
+plt.grid(axis='y')
 plt.legend()
+plt.savefig('error_u1a1', dpi = 300)
 plt.show
 
