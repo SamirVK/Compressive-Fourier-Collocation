@@ -8,8 +8,8 @@ Created on Thu Apr 27 12:36:57 2023
 
 import numpy as np
 import numpy.random as rd
-from sklearn import linear_model
 from scipy.integrate import dblquad
+from scipy.stats import gmean
 
 import matplotlib.pyplot as plt
 
@@ -35,7 +35,7 @@ def u_approx(x, y, c_hat, lam, cardlam):
     for j in range(cardlam):
         nux = lam[j][0]
         nuy = lam[j][1]
-        u += c_hat[0][j]*fourier(nux, nuy, x, y)/(4*np.pi**2*euc2(nux, nuy))
+        u += c_hat[j]*fourier(nux, nuy, x, y)/(4*np.pi**2*euc2(nux, nuy))
     return u
 
 # Define the exact solutions and their derivative approximations
@@ -119,7 +119,7 @@ def ay(x,y,num):
     
 ## BEGIN COMPRESSIVE FOURIER COLLOCATION
 ## CFC takes parameters as input and outputs a vector of recovered coeffs
-def CFC(colloc_points, cardinal_lambda, diff_num, exact_sparsity):
+def CFC(colloc_points, cardinal_lambda, diff_num, exact_sparsity, recovery):
     num = diff_num
     sparsity = exact_sparsity
     M = colloc_points  
@@ -152,8 +152,32 @@ def CFC(colloc_points, cardinal_lambda, diff_num, exact_sparsity):
         s3 = -ay(x,y,num)*uy(x,y,sparsity)
         s4 = -a(x,y,num)*uyy(x,y,sparsity)
         b[i] = (s1 + s2 + s3 + s4)/np.sqrt(M)
+        
+    if recovery == 'OLS':
+        c_hat = np.linalg.lstsq(A, b, rcond=None)
+        return c_hat[0]
+    else:
+        K = int(M/2)
+        c_hat = OMP(A, b, K, N)
+        return c_hat
 
-    c_hat = np.linalg.lstsq(A, b, rcond=None)
+## ORTHOGONAL MATCHING PURSUIT (OMP)
+## OMP takes A, b, K, as input and returns a K-sparse coefficient vector
+def OMP(A, b, K, N):
+    # Normalize the columns of A
+    A = A/np.sqrt(np.sum(np.square(np.abs(A))))
+    # Initialize z with empty support
+    S = []
+    z = np.zeros(N, dtype=complex)
+    for n in range(K):
+        # Pick the index whose column of A is mostly correlated with the 
+        # residual due to the current approximation z[n]
+        r = b - A.dot(z) 
+        j = np.argmax(np.abs((A.conj().T).dot(r)))
+        S.append(j)
+        z[S] = np.linalg.pinv(A[:,S]).dot(b)              
+    c_hat = z    
+    print(np.linalg.norm(c_hat,ord=0))
     return c_hat
 
 ## PLOT HYPERBOLIC SET AND EXACT SOLUTIONS
@@ -178,7 +202,7 @@ def exactPlots():
     axi.plot_surface(x,y,z_true,cmap='plasma', cstride=1, rstride = 1,
                      alpha=None, linewidth = 0, antialiased=False)
     axi.view_init(15,235)
-    plt.savefig('Exact_u2', bbox_inches="tight", dpi=300)
+    #plt.savefig('Exact_u2', bbox_inches="tight", dpi=300)
     plt.show()
     
 # PLOT APPROXIMATE SOLUTIONS
@@ -210,14 +234,50 @@ for x in range(-n+1, n):
             lam.append(np.array([x,y]))
 cardlam = len(lam)
 
-np.random.seed(0)
-d = rd.rand(10)
-m = rd.randint(1, 6, size = 10)
-n = rd.randint(1, 6, size = 10)
+##############################################################
+## Reproduce the results of the L2 loss plots! To do this, run 
+## an outer loop over M = [8, 16, 32, 64, 128, 256, 512, 1024]
+## and an inner loop that calculates the geometric mean of the 
+## L2 loss over 25 runs for each value of M (as does Weiqi).
 
+sparsity = 'sparse' ############## <<<<<<<<< Change sparsity
+diff = 1 ###################### <<<<<<<<< Change diff coeff
+r = 'OMP' ################## <<<<<<<<<< Change recovery method
+L2_losses = []
+collocation_points = [8,16,32,64,128,256,512]
+for M in collocation_points:
+    test_losses = []
+    for test in range(1):
+        
+        # Provide random parameters (global variables)
+        d = rd.rand(10)
+        m = rd.randint(1, 6, size = 10)
+        n = rd.randint(1, 6, size = 10)
+        
+        # Randomly sample points to evaluate the loss
+        loss_points = rd.rand(2*cardlam,2)
+        x = loss_points[:,0]
+        y = loss_points[:,1]
+        
+        # Get the exact solution at the random points
+        u_exact = u(x,y,sparsity)
+        
+        # Get the approx solution at the random points
+        c_hat = CFC(M, cardlam, diff, sparsity, r)
+        u_hat = u_approx(x, y, c_hat, lam, cardlam)
+        
+        # Compute the loss for this trial
+        loss = (np.sqrt(sum(abs(u_exact-u_hat)**2)/np.sqrt(M))/
+                np.sqrt(sum(abs(u_exact)**2)/np.sqrt(M)))
+        test_losses.append(loss)
 
+    # Compute the geometric mean of the test_losses
+    L2_losses.append(gmean(test_losses))
 
-
-
-
+plt.figure()
+plt.plot(collocation_points, L2_losses, marker = '.', color='black', label='OLS')
+plt.axvline(x = 444, linestyle='dotted', color='gray', label=r'$m=|\Lambda|$')
+plt.yscale('log')
+plt.legend()
+plt.show
 
