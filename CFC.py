@@ -10,6 +10,7 @@ import numpy as np
 import numpy.random as rd
 from scipy.integrate import dblquad
 from scipy.stats import gmean
+import time
 
 import matplotlib.pyplot as plt
 
@@ -29,7 +30,7 @@ def fouriery(nux,nuy,x,y):
 def fourieryy(nux,nuy,x,y):
     return -4*np.pi**2*nuy**2*np.exp(2j*np.pi*(nux*x+nuy*y))
 
-# A function to compute the approximate solution with recovered coeffs
+# A function to compute the approximate solution at (x,y) with recovered coeffs
 def u_approx(x, y, c_hat, lam, cardlam):
     u = 0
     for j in range(cardlam):
@@ -162,14 +163,13 @@ def CFC(colloc_points, cardinal_lambda, diff_num, exact_sparsity, recovery):
         return c_hat
 
 ## ORTHOGONAL MATCHING PURSUIT (OMP)
-## OMP takes A, b, K, as input and returns a K-sparse coefficient vector
+## OMP takes A, b, K, N as input and returns a K-sparse coefficient vector
 def OMP(A, b, K, N):
     # Normalize the columns of A
-    A = A/np.sqrt(np.sum(np.square(np.abs(A)),axis=0))
+    #A = A/np.sqrt(np.sum(np.square(np.abs(A)),axis=0))
     # Initialize z with empty support
     S = []
     masc = np.zeros(N,dtype=bool)
-    #s_columns = np.zeros(N)
     z = np.zeros(N, dtype=complex)
     for n in range(K):
         # Pick the index whose column of A is mostly correlated with the 
@@ -180,13 +180,13 @@ def OMP(A, b, K, N):
         j = np.argmax(maximiser)
         S.append(j)
         masc[S] = True
-        #s_columns[S] = 1
         if len(S) == 1:
             z[S] = np.ndarray.flatten(A[:,S]).dot(b)
         else:
             z[S] = np.linalg.pinv(A[:,S]).dot(b)  
-    c_hat = z    
-    return c_hat
+    
+    print(np.linalg.norm(z,ord=0))    
+    return z
 
 ## PLOT HYPERBOLIC SET AND EXACT SOLUTIONS
 def exactPlots():
@@ -215,11 +215,11 @@ def exactPlots():
     
 # PLOT APPROXIMATE SOLUTIONS
 def approxPlots():      
-    x = np.outer(np.linspace(0,1,100), np.ones(100))
+    x = np.outer(np.linspace(0,1,200), np.ones(200))
     y = x.copy().T
     
     M = 2**9
-    c_hat = CFC(M, cardlam, 1, 'sparse')
+    c_hat = CFC(M, cardlam, 3, 'nonsparse', 'OMP')
     z_approx = u_approx(x, y, c_hat, lam, cardlam)
     
     # Plot z_approx
@@ -228,10 +228,12 @@ def approxPlots():
     axi.set_ylabel('y')
     axi.set_zlabel('u1')
     axi.plot_surface(x,y,z_approx,cmap='plasma', cstride = 1, rstride = 1,
-                     alpha=None, antialiased=True)
+                     alpha=None, linewidth = 0, antialiased=False)
     axi.view_init(15,235)
     #plt.savefig('Approx_u1_a1', bbox_inches="tight", dpi=300)
     plt.show()
+    
+start_time = time.time()
 
 # Define the hyperbolic truncation set
 n = 39
@@ -244,16 +246,16 @@ cardlam = len(lam)
 
 ##############################################################
 ## Reproduce the results of the L2 loss plots! To do this, run 
-## an outer loop over M = [8, 16, 32, 64, 128, 256, 512, 1024]
+## an outer loop over M = [8, 16, 32, 64, 128, 256, 512, 712]
 ## and an inner loop that calculates the geometric mean of the 
 ## L2 loss over 25 runs for each value of M (as does Weiqi).
 
-sparsity = 'sparse' ############## <<<<<<<<< Change sparsity
-diff = 1 ###################### <<<<<<<<< Change diff coeff
+sparsity = 'nonsparse' ############## <<<<<<<<< Change sparsity
+diff = 3 ###################### <<<<<<<<< Change diff coeff
 
 L2_losses_ols = []
 L2_losses_omp = []
-collocation_points = [8,16,32,64,128,256,512,712]
+collocation_points = [8, 16, 32, 64, 128, 256, 512, 712]
 for M in collocation_points:
     test_losses_ols = []
     test_losses_omp = []
@@ -290,6 +292,8 @@ for M in collocation_points:
     L2_losses_ols.append(gmean(test_losses_ols))
     L2_losses_omp.append(gmean(test_losses_omp))
 
+print("--- %s seconds ---" % (time.time() - start_time))
+
 plt.figure()
 plt.plot(collocation_points, L2_losses_ols, marker = '.', color='blueviolet', label='OLS')
 plt.plot(collocation_points, L2_losses_omp, marker = '.', color='darkorange', label ='OMP')
@@ -299,6 +303,6 @@ plt.ylabel(r'Relative $L^2$ error')
 plt.xlabel('m')
 plt.grid(axis='y')
 plt.legend()
-plt.savefig('error_u1a1', dpi = 300)
+plt.savefig('error_u2a3(1)', dpi = 300)
 plt.show
 
