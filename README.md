@@ -1,1 +1,2 @@
 # Compressive-Fourier-Collocation
+A script that recreates some of the numerical results from [Wang and Brugiapaglia, 2022]. The method solves a stationary diffusion equation with periodic boundary conditions over a square domain using a spectral collocation approach with orthogonal matching pursuit to recover the coefficients in a discretized linear system. The recovery results from OMP are contrasted with an ordinary least squares solver (from numpy) and plotted as a function of the collocation points.
